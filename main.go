@@ -1,14 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
+	"os"
 
+	"github.com/matiaseiglesias/tp1-sistemas-distribuidos/server"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
-
-	server "./src/server"
 )
 
 func InitConfig() (*viper.Viper, error) {
@@ -66,12 +67,19 @@ func main() {
 
 	serverConfig := server.TcpServerConfig{
 		ServerAddress: v.GetString("server.address"),
-		ID:            v.GetString("id"),
-		LoopLapse:     v.GetDuration("loop.lapse"),
-		LoopPeriod:    v.GetDuration("loop.period"),
+		//ID:            v.GetString("id"),
+		//LoopLapse:     v.GetDuration("loop.lapse"),
+		//LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
-	s := server.NewTcpServer(serverConfig)
-	s.AcceptNewConnection()
-	s.CloseConnection()
+	s := server.NewLogServer(serverConfig)
+	server.AcceptNewConnection(s)
+	server.InitPoolParser(s)
+
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Enter text: ")
+	text, _ := reader.ReadString('\n')
+	fmt.Println(text)
+
+	server.CloseConnection(s)
 }
