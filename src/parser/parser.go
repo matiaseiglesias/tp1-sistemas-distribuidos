@@ -13,7 +13,7 @@ type Parser struct {
 
 func Run(p *Parser) {
 
-	for c := range p.inConn {
+	for c := range p.InConn {
 		msg, err := bufio.NewReader(c).ReadString('\n')
 		if err != nil {
 			fmt.Printf("Could not initialize server")
