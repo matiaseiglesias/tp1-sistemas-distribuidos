@@ -53,10 +53,10 @@ func CloseConnection(s *LogServer) {
 
 func InitPoolParser(s *LogServer) {
 	p := parser.Parser{
-		inConn: s.parser_channel,
+		InConn: s.parser_channel,
 	}
 
-	go p.Run()
+	go parser.Run(p)
 }
 
 //type LogWriteConnection struct {

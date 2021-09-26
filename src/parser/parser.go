@@ -8,7 +8,7 @@ import (
 
 type Parser struct {
 	ID     string
-	inConn chan net.Conn
+	InConn chan net.Conn
 }
 
 func Run(p *Parser) {
