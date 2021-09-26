@@ -65,7 +65,7 @@ func main() {
 	// Print program config with debugging purposes
 	PrintConfig(v)
 
-	serverConfig := server.TcpServerConfig{
+	serverConfig := server.ServerConfig{
 		ServerAddress: v.GetString("server.address"),
 		//ID:            v.GetString("id"),
 		//LoopLapse:     v.GetDuration("loop.lapse"),
