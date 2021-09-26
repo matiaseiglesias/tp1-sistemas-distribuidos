@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/matiaseiglesias/tp1-sistemas-distribuidos/server"
+	"github.com/matiaseiglesias/tp1-sistemas-distribuidos/src/server"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"

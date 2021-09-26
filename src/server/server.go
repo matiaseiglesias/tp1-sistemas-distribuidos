@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/matiaseiglesias/tp1-sistemas-distribuidos/parser"
+	"github.com/matiaseiglesias/tp1-sistemas-distribuidos/src/parser"
 )
 
 // ServerConfig Configuration used by the client
