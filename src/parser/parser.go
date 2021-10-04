@@ -180,6 +180,7 @@ func (p *Parser) Run() {
 		res.Conn = c
 
 		*p.OutLogs <- *res
+		time.Sleep(time.Second)
 		//c.Close()
 	}
 }

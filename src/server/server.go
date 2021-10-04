@@ -108,7 +108,12 @@ func (s *ReadLogServer) Run(wg *sync.WaitGroup) {
 			logrus.Info("Could not receive new connections")
 			break // TODO solo en el caso de que se cierre la conexion
 		}
-		s.ParserChannel <- conn
+		select {
+		case s.ParserChannel <- conn:
+		default:
+			logrus.Info("Dropeo conexion")
+
+		}
 	}
 	logrus.Info("Closing Read Server")
 	wg.Done()
@@ -121,7 +126,14 @@ func (s *WriteLogServer) Run(wg *sync.WaitGroup) {
 			logrus.Info("Could not receive new connections")
 			break // TODO solo en el caso de que se cierre la conexion
 		}
-		s.ParserChannel <- conn
+		select {
+		case s.ParserChannel <- conn:
+		default:
+			logrus.Info("Dropeo conexion")
+			conn.Close()
+
+		}
+
 	}
 	logrus.Info("Closing Write Server")
 	wg.Done()

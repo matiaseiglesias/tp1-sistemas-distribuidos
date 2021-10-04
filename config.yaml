@@ -4,7 +4,7 @@ read_server:
 write_server:
   address: "127.0.0.1:12345"  
 parser:
-  num: 100
+  num: 3
 loop:
   lapse: "1m5s"
   period: "5s"

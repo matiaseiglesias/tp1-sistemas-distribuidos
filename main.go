@@ -73,7 +73,7 @@ func PrintConfig(v *viper.Viper) {
 	//logrus.Infof("Client ID: %s", v.GetString("id"))
 	logrus.Infof("Read Server Address: %s", v.GetString("read_server.address"))
 	logrus.Infof("Write Server Address: %s", v.GetString("write_server.address"))
-	logrus.Infof("Parser number: %s", v.GetString("parse.num"))
+	logrus.Infof("Parser number: %d", v.GetInt("parser.num"))
 	//logrus.Infof("Loop Lapse: %v", v.GetDuration("loop.lapse"))
 	//logrus.Infof("Loop Period: %v", v.GetDuration("loop.period"))
 	logrus.Infof("Log Level: %s", v.GetString("log.level"))
