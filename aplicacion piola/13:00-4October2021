@@ -1,0 +1,4 @@
+{"AppId":"aplicacion piola","Initialize":true,"Message":"Hello World","LogTags":["test","prueba","go"],"Timestamp":"2021-10-04T13:00:10.391994767-03:00"}
+{"AppId":"aplicacion piola","Initialize":true,"Message":"Hello World","LogTags":["test","prueba","go"],"Timestamp":"2021-10-04T13:00:10.391933552-03:00"}
+{"AppId":"aplicacion piola","Initialize":true,"Message":"Hello World 2","LogTags":["test","prueba","go","distro1"],"Timestamp":"2021-10-04T13:05:18.764316695-03:00"}
+{"AppId":"aplicacion piola","Initialize":true,"Message":"Hello World 2","LogTags":["test","prueba","go","distro1"],"Timestamp":"2021-10-04T13:05:18.764333035-03:00"}

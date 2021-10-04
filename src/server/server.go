@@ -1,69 +1,145 @@
 package server
 
 import (
-	"fmt"
 	"net"
+	"sync"
 
 	"github.com/matiaseiglesias/tp1-sistemas-distribuidos/src/parser"
+	"github.com/sirupsen/logrus"
 )
 
 // ServerConfig Configuration used by the client
+
+type Server interface {
+	CloseConnection()
+}
+
 type ServerConfig struct {
 	ID            string
 	ServerAddress string
 	NumParsers    int
-	//LoopLapse     time.Duration
-	//LoopPeriod    time.Duration
 }
 
-type LogServer struct {
-	config         ServerConfig
-	conn           net.Listener
-	parser_channel chan net.Conn
+type logServer struct {
+	config ServerConfig
+	conn   net.Listener
 }
 
-func NewLogServer(c ServerConfig) *LogServer {
+type ReadLogServer struct {
+	Server        *logServer
+	ParserChannel chan net.Conn
+	OutLogs       chan parser.Query
+}
+
+type WriteLogServer struct {
+	Server        *logServer
+	ParserChannel chan net.Conn
+	OutLogs       chan parser.Query
+}
+
+func newLogServer(c ServerConfig) *logServer {
 	ln, err := net.Listen("tcp", c.ServerAddress)
 	if err != nil {
-		fmt.Printf("Could not initialize server")
+		logrus.Info("Could not initialize server")
 	}
-	parser_ch := make(chan net.Conn, c.NumParsers)
-	server := &LogServer{
-		config:         c,
-		conn:           ln,
-		parser_channel: parser_ch,
+	server := &logServer{
+		config: c,
+		conn:   ln,
 	}
 	return server
 
 }
 
-func AcceptNewConnection(s *LogServer) {
+func (s *logServer) acceptNewConnection() (net.Conn, error) {
 	conn, err := s.conn.Accept()
 	if err != nil {
-		fmt.Printf("Could not initialize server")
+		logrus.Info("Could not receive new connections")
+		return nil, err
 	}
-	s.parser_channel <- conn
-	fmt.Printf("New connection stablished")
+	return conn, nil
 }
 
-func CloseConnection(s *LogServer) {
-	close(s.parser_channel)
+func (s *logServer) closeConnection() {
 	s.conn.Close()
 }
 
-func InitPoolParser(s *LogServer) {
-	p := parser.Parser{
-		InConn: s.parser_channel,
-	}
+func NewReadLogServer(c ServerConfig) *ReadLogServer {
 
-	go parser.Run(&p)
+	server := &ReadLogServer{
+		Server:        newLogServer(c),
+		ParserChannel: make(chan net.Conn, c.NumParsers),
+		OutLogs:       make(chan parser.Query, c.NumParsers),
+	}
+	for i := 0; i < c.NumParsers; i++ {
+		parser := &parser.Parser{
+			Id:      "Prueba_1",
+			InConn:  &server.ParserChannel,
+			OutLogs: &server.OutLogs,
+		}
+		go parser.Run()
+
+	}
+	return server
 }
 
-//type LogWriteConnection struct {
-//	conn net.Conn
-//}
-//
-//type LogReadConnection struct {
-//	conn net.Conn
-//}
-//
+func NewWriteLogServer(c ServerConfig) *WriteLogServer {
+
+	server := &WriteLogServer{
+		Server:        newLogServer(c),
+		ParserChannel: make(chan net.Conn, c.NumParsers),
+		OutLogs:       make(chan parser.Query, c.NumParsers),
+	}
+	for i := 0; i < c.NumParsers; i++ {
+		parser := &parser.Parser{
+			Id:      "Prueba_1",
+			InConn:  &server.ParserChannel,
+			OutLogs: &server.OutLogs,
+		}
+		go parser.Run()
+
+	}
+	return server
+}
+
+func (s *ReadLogServer) Run(wg *sync.WaitGroup) {
+	for {
+		conn, err := s.Server.acceptNewConnection()
+		if err != nil {
+			logrus.Info("Could not receive new connections")
+			break // TODO solo en el caso de que se cierre la conexion
+		}
+		s.ParserChannel <- conn
+	}
+	logrus.Info("Closing Read Server")
+	wg.Done()
+}
+
+func (s *WriteLogServer) Run(wg *sync.WaitGroup) {
+	for {
+		conn, err := s.Server.acceptNewConnection()
+		if err != nil {
+			logrus.Info("Could not receive new connections")
+			break // TODO solo en el caso de que se cierre la conexion
+		}
+		s.ParserChannel <- conn
+	}
+	logrus.Info("Closing Write Server")
+	wg.Done()
+}
+
+func (s *WriteLogServer) GetOutLogChan() *chan parser.Query {
+	return &s.OutLogs
+}
+func (s *ReadLogServer) GetOutLogChan() *chan parser.Query {
+	return &s.OutLogs
+}
+
+func (s *ReadLogServer) CloseConnection() {
+	close(s.ParserChannel)
+	s.Server.closeConnection()
+}
+
+func (s *WriteLogServer) CloseConnection() {
+	close(s.ParserChannel)
+	s.Server.closeConnection()
+}
