@@ -9,48 +9,45 @@ import (
 )
 
 // ServerConfig Configuration used by the client
-
-type Server interface {
-	CloseConnection()
-}
-
 type ServerConfig struct {
 	ID            string
 	ServerAddress string
 	NumParsers    int
 }
 
-type logServer struct {
-	config ServerConfig
-	conn   net.Listener
-}
-
-type ReadLogServer struct {
-	Server        *logServer
+type LogServer struct {
+	config        ServerConfig
+	conn          net.Listener
 	ParserChannel chan net.Conn
 	OutLogs       chan parser.Query
 }
 
-type WriteLogServer struct {
-	Server        *logServer
-	ParserChannel chan net.Conn
-	OutLogs       chan parser.Query
-}
-
-func newLogServer(c ServerConfig) *logServer {
+func NewLogServer(c ServerConfig) *LogServer {
 	ln, err := net.Listen("tcp", c.ServerAddress)
 	if err != nil {
 		logrus.Info("Could not initialize server")
 	}
-	server := &logServer{
-		config: c,
-		conn:   ln,
+	server := &LogServer{
+		config:        c,
+		conn:          ln,
+		ParserChannel: make(chan net.Conn, c.NumParsers),
+		OutLogs:       make(chan parser.Query, c.NumParsers),
+	}
+
+	for i := 0; i < c.NumParsers; i++ {
+		parser := &parser.Parser{
+			Id:      "Prueba_1",
+			InConn:  &server.ParserChannel,
+			OutLogs: &server.OutLogs,
+		}
+		go parser.Run()
+
 	}
 	return server
 
 }
 
-func (s *logServer) acceptNewConnection() (net.Conn, error) {
+func (s *LogServer) acceptNewConnection() (net.Conn, error) {
 	conn, err := s.conn.Accept()
 	if err != nil {
 		logrus.Info("Could not receive new connections")
@@ -59,51 +56,15 @@ func (s *logServer) acceptNewConnection() (net.Conn, error) {
 	return conn, nil
 }
 
-func (s *logServer) closeConnection() {
+func (s *LogServer) CloseConnection() {
+	close(s.ParserChannel)
+	close(s.OutLogs)
 	s.conn.Close()
 }
 
-func NewReadLogServer(c ServerConfig) *ReadLogServer {
-
-	server := &ReadLogServer{
-		Server:        newLogServer(c),
-		ParserChannel: make(chan net.Conn, c.NumParsers),
-		OutLogs:       make(chan parser.Query, c.NumParsers),
-	}
-	for i := 0; i < c.NumParsers; i++ {
-		parser := &parser.Parser{
-			Id:      "Prueba_1",
-			InConn:  &server.ParserChannel,
-			OutLogs: &server.OutLogs,
-		}
-		go parser.Run()
-
-	}
-	return server
-}
-
-func NewWriteLogServer(c ServerConfig) *WriteLogServer {
-
-	server := &WriteLogServer{
-		Server:        newLogServer(c),
-		ParserChannel: make(chan net.Conn, c.NumParsers),
-		OutLogs:       make(chan parser.Query, c.NumParsers),
-	}
-	for i := 0; i < c.NumParsers; i++ {
-		parser := &parser.Parser{
-			Id:      "Prueba_1",
-			InConn:  &server.ParserChannel,
-			OutLogs: &server.OutLogs,
-		}
-		go parser.Run()
-
-	}
-	return server
-}
-
-func (s *ReadLogServer) Run(wg *sync.WaitGroup) {
+func (s *LogServer) Run(wg *sync.WaitGroup) {
 	for {
-		conn, err := s.Server.acceptNewConnection()
+		conn, err := s.acceptNewConnection()
 		if err != nil {
 			logrus.Info("Could not receive new connections")
 			break // TODO solo en el caso de que se cierre la conexion
@@ -111,7 +72,10 @@ func (s *ReadLogServer) Run(wg *sync.WaitGroup) {
 		select {
 		case s.ParserChannel <- conn:
 		default:
+			r := &parser.Response{Conn: conn}
+			r.SendBusyServer()
 			logrus.Info("Dropeo conexion")
+			conn.Close()
 
 		}
 	}
@@ -119,39 +83,6 @@ func (s *ReadLogServer) Run(wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func (s *WriteLogServer) Run(wg *sync.WaitGroup) {
-	for {
-		conn, err := s.Server.acceptNewConnection()
-		if err != nil {
-			logrus.Info("Could not receive new connections")
-			break // TODO solo en el caso de que se cierre la conexion
-		}
-		select {
-		case s.ParserChannel <- conn:
-		default:
-			logrus.Info("Dropeo conexion")
-			conn.Close()
-
-		}
-
-	}
-	logrus.Info("Closing Write Server")
-	wg.Done()
-}
-
-func (s *WriteLogServer) GetOutLogChan() *chan parser.Query {
+func (s *LogServer) GetOutLogChan() *chan parser.Query {
 	return &s.OutLogs
-}
-func (s *ReadLogServer) GetOutLogChan() *chan parser.Query {
-	return &s.OutLogs
-}
-
-func (s *ReadLogServer) CloseConnection() {
-	close(s.ParserChannel)
-	s.Server.closeConnection()
-}
-
-func (s *WriteLogServer) CloseConnection() {
-	close(s.ParserChannel)
-	s.Server.closeConnection()
 }

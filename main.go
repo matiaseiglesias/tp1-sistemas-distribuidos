@@ -43,7 +43,7 @@ func InitLogger(logLevel string) error {
 	return nil
 }
 
-func signalListener(signal chan os.Signal, finished chan bool, s []server.Server) {
+func signalListener(signal chan os.Signal, finished chan bool, s []*server.LogServer) {
 
 	sig := <-signal
 	logrus.Infof("Signal catched: ", sig)
@@ -53,7 +53,7 @@ func signalListener(signal chan os.Signal, finished chan bool, s []server.Server
 	}
 }
 
-func initSignalListener(s []server.Server) (chan bool, error) {
+func initSignalListener(s []*server.LogServer) (chan bool, error) {
 
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
@@ -63,19 +63,16 @@ func initSignalListener(s []server.Server) (chan bool, error) {
 	go signalListener(sigs, done, s)
 
 	return done, nil
-
 }
 
 // PrintConfig Print all the configuration parameters of the program.
 // For debugging purposes only
 func PrintConfig(v *viper.Viper) {
+
 	logrus.Infof("Client configuration")
-	//logrus.Infof("Client ID: %s", v.GetString("id"))
 	logrus.Infof("Read Server Address: %s", v.GetString("read_server.address"))
 	logrus.Infof("Write Server Address: %s", v.GetString("write_server.address"))
 	logrus.Infof("Parser number: %d", v.GetInt("parser.num"))
-	//logrus.Infof("Loop Lapse: %v", v.GetDuration("loop.lapse"))
-	//logrus.Infof("Loop Period: %v", v.GetDuration("loop.period"))
 	logrus.Infof("Log Level: %s", v.GetString("log.level"))
 }
 
@@ -103,13 +100,14 @@ func main() {
 	}
 
 	logrus.Infof("Initalizating LogServer")
-	rs := server.NewReadLogServer(readServerConfig)
-	ws := server.NewWriteLogServer(writeServerConfig)
+	rs := server.NewLogServer(readServerConfig)
+	ws := server.NewLogServer(writeServerConfig)
 
 	f_manager := file_manager.NewFileManager(rs.GetOutLogChan(), ws.GetOutLogChan())
-	go f_manager.Run()
+	exitSignal := make(chan bool)
+	go f_manager.Run(&exitSignal)
 
-	done, _ := initSignalListener([]server.Server{rs, ws})
+	done, _ := initSignalListener([]*server.LogServer{rs, ws})
 
 	var wg sync.WaitGroup
 
@@ -119,6 +117,7 @@ func main() {
 	go ws.Run(&wg)
 
 	<-done
+	exitSignal <- true
 
 	wg.Wait()
 

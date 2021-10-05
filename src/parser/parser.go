@@ -12,8 +12,9 @@ import (
 	"time"
 )
 
-const UINT32_SIZE = 4
 const MAX_BUFFER_SIZE = 1024
+const UINT32_SIZE = 4
+const UINT8_SIZE = 1
 
 type Query struct {
 	Read  ReadQuery
@@ -57,7 +58,50 @@ func ToPathName(id string, t time.Time) string {
 
 }
 
-func receive_bytes(c net.Conn, size uint32) ([]byte, error) {
+type Response struct {
+	Conn net.Conn
+}
+
+func NewResponse(c net.Conn) *Response {
+	return &Response{Conn: c}
+}
+
+func (r *Response) sendCode(c uint8) error {
+	buf := new(bytes.Buffer)
+	err := binary.Write(buf, binary.LittleEndian, c)
+	if err != nil {
+		return err
+	}
+	n, err := r.Conn.Write(buf.Bytes())
+	if err != nil || n != 0 {
+		return err
+	}
+	return nil
+}
+
+func (r *Response) SendAckWriteLog() error {
+	return r.sendCode(uint8(0))
+}
+func (r *Response) SendWrongFormat() error {
+	return r.sendCode(uint8(1))
+}
+func (r *Response) SendBusyServer() error {
+	return r.sendCode(uint8(2))
+}
+func (r *Response) SendUnkownAppId() error {
+	return r.sendCode(uint8(3))
+}
+func (r *Response) SendAck() error {
+	return r.sendCode(uint8(4))
+}
+func (r *Response) SendNewLog() error {
+	return r.sendCode(uint8(5))
+}
+func (r *Response) SendNoMoreLogs() error {
+	return r.sendCode(uint8(6))
+}
+
+func ReceiveBytes(c net.Conn, size uint32) ([]byte, error) {
 	buff := make([]byte, 0)
 	tmp_buff := make([]byte, MAX_BUFFER_SIZE)
 
@@ -79,31 +123,185 @@ func receive_bytes(c net.Conn, size uint32) ([]byte, error) {
 	return buff, nil
 }
 
-func receive(c net.Conn) []byte {
+func SendBytes(c net.Conn, b []byte) error {
 
-	length_b, err := receive_bytes(c, UINT32_SIZE)
+	sentBytes := 0
+	bytesToSend := len(b)
+
+	for sentBytes < bytesToSend {
+		n, err := c.Write(b)
+		if err != nil {
+			fmt.Println("Error al enviar un bytes", err)
+			return err
+		}
+		b = b[n:]
+		sentBytes += n
+	}
+	return nil
+}
+
+func ReceiveResponse(c net.Conn) (uint8, error) {
+	ack, err := ReceiveBytes(c, UINT8_SIZE)
 	if err != nil {
-		fmt.Println("Error al recibir un int ", err)
+		return 0, err
+	}
+	return uint8(ack[0]), nil
+
+}
+
+func SendLogs(c net.Conn, logs *[]WriteQuery) {
+
+	fmt.Println("ENTRE")
+
+	for _, log := range *logs {
+
+		r := &Response{Conn: c}
+		r.SendNewLog()
+
+		t, err := ReceiveResponse(c)
+		if err != nil {
+			return
+		}
+		fmt.Println("recibi confimacion", 1, t)
+		log_b, _ := json.Marshal(log)
+
+		length := uint32(len(log_b))
+		buf := new(bytes.Buffer)
+		binary.Write(buf, binary.LittleEndian, length)
+		SendBytes(c, buf.Bytes())
+		fmt.Println("envie un int", length)
+		t, err = ReceiveResponse(c)
+		if err != nil {
+			return
+		}
+		fmt.Println("recibi confimacion", 2, t)
+		SendBytes(c, log_b)
+		//fmt.Println("envie un log: ", log_b)
+		t, err = ReceiveResponse(c)
+		if err != nil {
+			return
+		}
+		fmt.Println("recibi confimacion", 3, t)
+	}
+	r := &Response{Conn: c}
+	r.SendNoMoreLogs()
+}
+
+func ReceiveLogs(c net.Conn) []WriteQuery {
+
+	logs := make([]WriteQuery, 0)
+	r := &Response{Conn: c}
+
+	cmd, err := ReceiveResponse(c)
+	if err != nil {
+		return nil
+	}
+	fmt.Println("Recibi un cmd = ", cmd)
+	for cmd == 5 {
+		fmt.Println("voy a recibir un nuevo log")
+		r.SendAck()
+
+		length_b, err := ReceiveBytes(c, UINT32_SIZE)
+		if err != nil {
+			fmt.Println("Error al recibir un int ", err)
+			return nil
+		}
+		log_length := binary.LittleEndian.Uint32(length_b)
+		fmt.Println("Voy a recibir bytes: ", log_length)
+		r.SendAck()
+		log_b, err := ReceiveBytes(c, log_length)
+		if err != nil {
+			fmt.Println("Error al recibir un int ", err)
+			return nil
+		}
+		fmt.Println("bytes: ", log_b)
+		p := &WriteQuery{}
+		json.Unmarshal(log_b, p)
+		fmt.Println("recibi el log: ", p)
+		logs = append(logs, *p)
+		err = r.SendAck()
+		if err != nil {
+			fmt.Println("Error al recibir un int ", err)
+			return nil
+		}
+		cmd, err = ReceiveResponse(c)
+		if err != nil {
+			fmt.Println("Error al recibir un int ", err)
+			return nil
+		}
+	}
+	fmt.Println("Termine de recibir logs")
+	return logs
+}
+
+func receiveQuery(c net.Conn) ([]byte, error) {
+
+	length_b, err := ReceiveBytes(c, UINT32_SIZE)
+	if err != nil {
+		fmt.Println("Se borro la conexion ", err)
+		return nil, err
 	}
 
 	log_length := binary.LittleEndian.Uint32(length_b)
 
-	buf := new(bytes.Buffer)
-	err = binary.Write(buf, binary.LittleEndian, uint32(1))
+	r := &Response{Conn: c}
+	err = r.SendAck()
 	if err != nil {
-		fmt.Println("ERRor", err)
+		return nil, err
 	}
-	c.Write(buf.Bytes())
 
 	fmt.Println("Bytes a recibir: ", log_length)
 
-	log_b, err := receive_bytes(c, log_length)
+	log_b, err := ReceiveBytes(c, log_length)
 
 	if err != nil {
 		fmt.Println("Error al recibir el log ", err)
 	}
 	//fmt.Println("Mensaje recibido ", log_b)
-	return log_b
+	return log_b, nil
+}
+
+func SendQuery(c net.Conn, q Query) error {
+
+	ack, _ := ReceiveResponse(c)
+
+	fmt.Println("ACK de estado", ack)
+	if ack == 2 {
+		return errors.New("servidor ocupado")
+	}
+
+	jlog, err := json.Marshal(q)
+
+	if err != nil {
+		fmt.Println("ERROR: ", 1)
+		return err
+	}
+
+	length := uint32(len(jlog))
+
+	fmt.Println("Enviando ", length)
+
+	buf := new(bytes.Buffer)
+	err = binary.Write(buf, binary.LittleEndian, length)
+	if err != nil {
+		fmt.Println("ERROR: ", 2)
+		return err
+	}
+
+	err = SendBytes(c, buf.Bytes())
+	if err != nil {
+		fmt.Println("ERROR: ", 3)
+		return err
+	}
+
+	ReceiveResponse(c)
+
+	err = SendBytes(c, jlog)
+	if err != nil {
+		fmt.Println("ERROR: ", 4)
+		return err
+	}
+	return nil
 }
 
 func (q *Query) IsReadQuery() bool {
@@ -167,20 +365,29 @@ func (q *ReadQuery) GetFilter() Filter {
 func (p *Parser) Run() {
 
 	for c := range *p.InConn {
+		r := &Response{Conn: c}
+		err := r.SendAck()
+		if err != nil {
+			//se dropeo la conexion
+			continue
+		}
 
-		log_b := receive(c)
+		log_b, err := receiveQuery(c)
+		if err != nil {
+			continue
+		}
 		res := &Query{}
-		err := json.Unmarshal(log_b, res)
+		err = json.Unmarshal(log_b, res)
 
 		if err != nil {
-			fmt.Println("Error al serializar: ", err)
+			fmt.Println("Error al deserializar: ", err)
+			r := &Response{Conn: c}
+			r.SendWrongFormat()
+			c.Close()
+			continue
 		}
-		//fmt.Println(res)
-
 		res.Conn = c
 
 		*p.OutLogs <- *res
-		time.Sleep(time.Second)
-		//c.Close()
 	}
 }

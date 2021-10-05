@@ -43,7 +43,7 @@ func NewFileManager(rq, wq *chan parser.Query) *FileManager {
 	return f
 }
 
-func (f *FileManager) Run() {
+func (f *FileManager) Run(quit *chan bool) {
 	for {
 		select {
 		case q := <-*f.InReadQueries:
@@ -57,7 +57,7 @@ func (f *FileManager) Run() {
 					Readers:        1,
 				}
 				f.OutReadQueries <- q
-				fmt.Println("lectura 1 lista: ", f.Dispatcher[q.Read.AppId].WaitingQueries)
+				//fmt.Println("lectura 1 lista: ", f.Dispatcher[q.Read.AppId].WaitingQueries)
 				continue
 			} else if len(openFile.WaitingQueries) > 0 || openFile.Writter > 0 {
 				fmt.Println("encolo lectura, escritores esperando")
@@ -69,7 +69,7 @@ func (f *FileManager) Run() {
 				f.Dispatcher[q.Read.AppId] = openFile
 				f.OutReadQueries <- q
 			}
-			fmt.Println("lectura lista: ", f.Dispatcher[q.Read.AppId].WaitingQueries)
+			//fmt.Println("lectura lista: ", f.Dispatcher[q.Read.AppId].WaitingQueries)
 
 		case q := <-*f.InWriteQueries:
 			fmt.Println("llego una escritura")
@@ -89,7 +89,7 @@ func (f *FileManager) Run() {
 				f.Dispatcher[q.Write.AppId] = openFile
 				fmt.Println("bye")
 			}
-			fmt.Println("escritura lista: ", f.Dispatcher[q.Write.AppId].WaitingQueries)
+			//fmt.Println("escritura lista: ", f.Dispatcher[q.Write.AppId].WaitingQueries)
 
 		case ack := <-f.FinishedQueries:
 			fmt.Println("LLEGO UN ACK DE LA APP", ack.AppId)
@@ -158,7 +158,15 @@ func (f *FileManager) Run() {
 				}
 				fmt.Println("cantidad de escritores", openFile.Writter)
 			}
-			fmt.Println("ack lista: ", f.Dispatcher[ack.AppId].WaitingQueries)
+			//fmt.Println("ack lista: ", f.Dispatcher[ack.AppId].WaitingQueries)
+		case q := <-*quit:
+			if q {
+				close(f.OutReadQueries)
+				close(f.OutWriteQueries)
+				close(f.FinishedQueries)
+				fmt.Println("SE CIERRA EL FILE MANAGER")
+				return
+			}
 		}
 	}
 }

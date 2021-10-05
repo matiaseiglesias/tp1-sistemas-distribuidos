@@ -79,13 +79,6 @@ func readFile(path string, logs *[]parser.WriteQuery, f parser.Filter) (*[]parse
 	return logs, nil
 }
 
-func send_logs(logs *[]parser.WriteQuery) {
-	for i, v := range *logs {
-		fmt.Println("--------------------------Log ", i, "--------------------------")
-		fmt.Println(v)
-	}
-}
-
 func exists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {
@@ -147,11 +140,22 @@ func Read(logs *chan parser.Query, ack *chan Ack) {
 
 	for l := range *logs {
 		fmt.Println("--------------------------Leyendo--------------------------")
+		knownApp, _ := exists("./" + l.Read.AppId)
+		if !knownApp {
+			r := parser.Response{Conn: l.Conn}
+			r.SendUnkownAppId()
+			l.Conn.Close()
+			*ack <- Ack{
+				AppId: l.Read.AppId,
+				Read:  true,
+			}
+			continue
+		}
 		filter := l.Read.GetFilter()
 		if l.Read.HasTimeFilter() {
 			fmt.Println("Leyendo for dias")
 			logs, _ := readFromTo(l.Read.AppId, filter, l.Read.From, l.Read.To)
-			send_logs(&logs)
+			parser.SendLogs(l.Conn, &logs)
 			*ack <- Ack{
 				AppId: l.Read.AppId,
 				Read:  true,
@@ -159,12 +163,13 @@ func Read(logs *chan parser.Query, ack *chan Ack) {
 		} else {
 			fmt.Println("Leyendo Todo")
 			logs, _ := readAll(l.Read.AppId, filter)
-			send_logs(&logs)
+			parser.SendLogs(l.Conn, &logs)
 			*ack <- Ack{
 				AppId: l.Read.AppId,
 				Read:  true,
 			}
 		}
+		l.Conn.Close()
 	}
 }
 
@@ -203,6 +208,10 @@ func Write(logs *chan parser.Query, ack *chan Ack) error {
 		file.Write(to_file)
 		file.WriteString("\n")
 		file.Close()
+		r := parser.Response{Conn: l.Conn}
+		r.SendAckWriteLog()
+		l.Conn.Close()
+
 		*ack <- Ack{
 			AppId: l.Write.AppId,
 			Write: true,
