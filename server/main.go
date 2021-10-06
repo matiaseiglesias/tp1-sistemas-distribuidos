@@ -103,7 +103,7 @@ func main() {
 	rs := server.NewLogServer(readServerConfig)
 	ws := server.NewLogServer(writeServerConfig)
 
-	f_manager := file_manager.NewFileManager(rs.GetOutLogChan(), ws.GetOutLogChan())
+	f_manager := file_manager.NewFileManager(rs.GetOutLogChan(), ws.GetOutLogChan(), 50)
 	exitSignal := make(chan bool)
 	go f_manager.Run(&exitSignal)
 

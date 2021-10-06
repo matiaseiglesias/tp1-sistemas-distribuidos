@@ -1,0 +1,11 @@
+#id: "1"
+read_server:
+  address: "server:12344"
+write_server:
+  address: "server:12345"
+
+logs:
+  read: 3 #Number of concurrent read queries
+  write: 5 #Number of concurrent write queries
+log:
+  level: "info"

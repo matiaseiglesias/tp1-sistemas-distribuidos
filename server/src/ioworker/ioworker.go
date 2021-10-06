@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/matiaseiglesias/tp1-sistemas-distribuidos/src/parser"
+	"github.com/sirupsen/logrus"
 )
 
 //func Read(log parser.Log, name_file string) ([]parser.Log, error) {
@@ -31,7 +31,7 @@ func hasTag(path, tag string) (bool, error) {
 
 	file, err := os.Open(path + ".tag")
 	if err != nil {
-		fmt.Println("no se pude abrir el archivo", path)
+		logrus.Infof("no se pude abrir el archivo", path)
 		return false, errors.New("no se pude abrir el archivo")
 	}
 	defer file.Close()
@@ -58,7 +58,7 @@ func readFile(path string, logs *[]parser.WriteQuery, f parser.Filter) (*[]parse
 	}
 	file, err := os.Open(path)
 	if err != nil {
-		fmt.Println("no se pude abrir el archivo", path)
+		logrus.Infof("no se pude abrir el archivo", path)
 		return nil, errors.New("no se pude abrir el archivo")
 	}
 	defer file.Close()
@@ -139,7 +139,6 @@ func readFromTo(id string, f parser.Filter, from, to time.Time) ([]parser.WriteQ
 func Read(logs *chan parser.Query, ack *chan Ack) {
 
 	for l := range *logs {
-		fmt.Println("--------------------------Leyendo--------------------------")
 		knownApp, _ := exists("./" + l.Read.AppId)
 		if !knownApp {
 			r := parser.Response{Conn: l.Conn}
@@ -153,7 +152,6 @@ func Read(logs *chan parser.Query, ack *chan Ack) {
 		}
 		filter := l.Read.GetFilter()
 		if l.Read.HasTimeFilter() {
-			fmt.Println("Leyendo for dias")
 			logs, _ := readFromTo(l.Read.AppId, filter, l.Read.From, l.Read.To)
 			parser.SendLogs(l.Conn, &logs)
 			*ack <- Ack{
@@ -161,7 +159,6 @@ func Read(logs *chan parser.Query, ack *chan Ack) {
 				Read:  true,
 			}
 		} else {
-			fmt.Println("Leyendo Todo")
 			logs, _ := readAll(l.Read.AppId, filter)
 			parser.SendLogs(l.Conn, &logs)
 			*ack <- Ack{
@@ -195,10 +192,8 @@ func Write(logs *chan parser.Query, ack *chan Ack) error {
 			}
 		}
 		path_name := parser.ToPathName(l.Write.AppId, l.Write.Timestamp)
-		fmt.Println("nombre del archivo:", path_name)
 
 		if l.Write.HasTags() {
-			fmt.Println("escribiendo tangs")
 			tag_path_name := path_name + ".tag"
 			writeTags(tag_path_name, l.Write.LogTags)
 		}

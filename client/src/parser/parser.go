@@ -110,14 +110,12 @@ func ReceiveBytes(c net.Conn, size uint32) ([]byte, error) {
 	for bytes_recieved < size {
 		n, err := c.Read(tmp_buff)
 		if err != nil {
-			fmt.Println("Error al recibir un paquete", err)
 			return nil, err
 		}
 		buff = append(buff, tmp_buff[:n]...)
 		bytes_recieved += uint32(n)
 	}
 	if bytes_recieved > size {
-		fmt.Println("Esperaba", size, "bytes y recibi: ", bytes_recieved)
 		return nil, errors.New("wrong packet size")
 	}
 	return buff, nil
@@ -131,7 +129,6 @@ func SendBytes(c net.Conn, b []byte) error {
 	for sentBytes < bytesToSend {
 		n, err := c.Write(b)
 		if err != nil {
-			fmt.Println("Error al enviar un bytes", err)
 			return err
 		}
 		b = b[n:]
@@ -146,42 +143,34 @@ func ReceiveResponse(c net.Conn) (uint8, error) {
 		return 0, err
 	}
 	return uint8(ack[0]), nil
-
 }
 
 func SendLogs(c net.Conn, logs *[]WriteQuery) {
-
-	fmt.Println("ENTRE")
 
 	for _, log := range *logs {
 
 		r := &Response{Conn: c}
 		r.SendNewLog()
 
-		t, err := ReceiveResponse(c)
+		_, err := ReceiveResponse(c)
 		if err != nil {
 			return
 		}
-		fmt.Println("recibi confimacion", 1, t)
 		log_b, _ := json.Marshal(log)
 
 		length := uint32(len(log_b))
 		buf := new(bytes.Buffer)
 		binary.Write(buf, binary.LittleEndian, length)
 		SendBytes(c, buf.Bytes())
-		fmt.Println("envie un int", length)
-		t, err = ReceiveResponse(c)
+		_, err = ReceiveResponse(c)
 		if err != nil {
 			return
 		}
-		fmt.Println("recibi confimacion", 2, t)
 		SendBytes(c, log_b)
-		//fmt.Println("envie un log: ", log_b)
-		t, err = ReceiveResponse(c)
+		_, err = ReceiveResponse(c)
 		if err != nil {
 			return
 		}
-		fmt.Println("recibi confimacion", 3, t)
 	}
 	r := &Response{Conn: c}
 	r.SendNoMoreLogs()
@@ -196,41 +185,31 @@ func ReceiveLogs(c net.Conn) []WriteQuery {
 	if err != nil {
 		return nil
 	}
-	fmt.Println("Recibi un cmd = ", cmd)
 	for cmd == 5 {
-		fmt.Println("voy a recibir un nuevo log")
 		r.SendAck()
 
 		length_b, err := ReceiveBytes(c, UINT32_SIZE)
 		if err != nil {
-			fmt.Println("Error al recibir un int ", err)
 			return nil
 		}
 		log_length := binary.LittleEndian.Uint32(length_b)
-		fmt.Println("Voy a recibir bytes: ", log_length)
 		r.SendAck()
 		log_b, err := ReceiveBytes(c, log_length)
 		if err != nil {
-			fmt.Println("Error al recibir un int ", err)
 			return nil
 		}
-		fmt.Println("bytes: ", log_b)
 		p := &WriteQuery{}
 		json.Unmarshal(log_b, p)
-		fmt.Println("recibi el log: ", p)
 		logs = append(logs, *p)
 		err = r.SendAck()
 		if err != nil {
-			fmt.Println("Error al recibir un int ", err)
 			return nil
 		}
 		cmd, err = ReceiveResponse(c)
 		if err != nil {
-			fmt.Println("Error al recibir un int ", err)
 			return nil
 		}
 	}
-	fmt.Println("Termine de recibir logs")
 	return logs
 }
 
@@ -249,15 +228,11 @@ func receiveQuery(c net.Conn) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println("Bytes a recibir: ", log_length)
-
 	log_b, err := ReceiveBytes(c, log_length)
 
 	if err != nil {
-		fmt.Println("Error al recibir el log ", err)
+		return nil, nil
 	}
-	//fmt.Println("Mensaje recibido ", log_b)
 	return log_b, nil
 }
 
@@ -265,7 +240,6 @@ func SendQuery(c net.Conn, q Query) error {
 
 	ack, _ := ReceiveResponse(c)
 
-	fmt.Println("ACK de estado", ack)
 	if ack == 2 {
 		return errors.New("servidor ocupado")
 	}
@@ -273,24 +247,19 @@ func SendQuery(c net.Conn, q Query) error {
 	jlog, err := json.Marshal(q)
 
 	if err != nil {
-		fmt.Println("ERROR: ", 1)
 		return err
 	}
 
 	length := uint32(len(jlog))
 
-	fmt.Println("Enviando ", length)
-
 	buf := new(bytes.Buffer)
 	err = binary.Write(buf, binary.LittleEndian, length)
 	if err != nil {
-		fmt.Println("ERROR: ", 2)
 		return err
 	}
 
 	err = SendBytes(c, buf.Bytes())
 	if err != nil {
-		fmt.Println("ERROR: ", 3)
 		return err
 	}
 
@@ -298,7 +267,6 @@ func SendQuery(c net.Conn, q Query) error {
 
 	err = SendBytes(c, jlog)
 	if err != nil {
-		fmt.Println("ERROR: ", 4)
 		return err
 	}
 	return nil

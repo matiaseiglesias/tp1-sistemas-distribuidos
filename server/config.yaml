@@ -1,0 +1,8 @@
+read_server:
+  address: "server:12344"
+write_server:
+  address: "server:12345"  
+parser:
+  num: 5 #Number of gorutines attending queries
+log:
+  level: "info"

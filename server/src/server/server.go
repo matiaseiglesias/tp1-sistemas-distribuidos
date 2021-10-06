@@ -8,7 +8,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// ServerConfig Configuration used by the client
 type ServerConfig struct {
 	ID            string
 	ServerAddress string
@@ -36,7 +35,7 @@ func NewLogServer(c ServerConfig) *LogServer {
 
 	for i := 0; i < c.NumParsers; i++ {
 		parser := &parser.Parser{
-			Id:      "Prueba_1",
+			Id:      "",
 			InConn:  &server.ParserChannel,
 			OutLogs: &server.OutLogs,
 		}
